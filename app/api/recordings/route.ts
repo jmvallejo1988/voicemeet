@@ -74,7 +74,8 @@ export async function POST(req: NextRequest) {
         status: 'ready',
       });
     } catch (err) {
-      console.error('Recording processing error:', err);
+      const msg = err instanceof Error ? err.message : JSON.stringify(err);
+      console.error('Recording processing error:', msg);
       await updateRecording(id, { status: 'error' });
     }
   })();

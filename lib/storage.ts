@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv';
+import { kv } from '@/lib/kv';
 import { put, del } from '@vercel/blob';
 import type { Recording, Meeting, UserSettings } from '@/types';
 

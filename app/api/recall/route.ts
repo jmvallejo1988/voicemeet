@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createBot, getBot, stopBot, getBotStatusCode } from '@/lib/recall';
 import { getSettings, saveMeeting, updateMeeting, expiresAt30Days } from '@/lib/storage';
-import { kv } from '@vercel/kv';
+import { kv } from '@/lib/kv';
 import { randomUUID } from 'crypto';
 import type { Meeting } from '@/types';
 

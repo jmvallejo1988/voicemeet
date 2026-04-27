@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { deleteRecording } from '@/lib/storage';
-import { kv } from '@vercel/kv';
+import { kv } from '@/lib/kv';
 import type { Recording } from '@/types';
 
 // GET → single recording

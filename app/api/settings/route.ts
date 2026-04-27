@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { getSettings, saveSettings } from '@/lib/storage';
-import { kv } from '@vercel/kv';
+import { kv } from '@/lib/kv';
 
 export async function GET() {
   const session = await getServerSession(authOptions);

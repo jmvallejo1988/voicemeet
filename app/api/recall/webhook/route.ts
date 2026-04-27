@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { kv } from '@vercel/kv';
+import { kv } from '@/lib/kv';
 import { getBot, getBotAudioUrl, getBotStatusCode } from '@/lib/recall';
 import { updateMeeting, uploadAudio, getSettings } from '@/lib/storage';
 import { transcribeAudio, summarizeText } from '@/lib/openrouter';

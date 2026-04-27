@@ -8,40 +8,30 @@ import type { SummaryResult } from '@/types';
 
 const OR_BASE = 'https://openrouter.ai/api/v1';
 
-// ─── Transcription ─────────────────────────────────────────────────────────
+// ─── Transcription via Whisper (multipart) ─────────────────────────────────
 
 export async function transcribeAudio(
   audioBase64: string,
   apiKey: string,
   format: 'webm' | 'mp4' | 'wav' | 'ogg' = 'webm'
 ): Promise<string> {
-  const res = await fetch(`${OR_BASE}/chat/completions`, {
+  // Convert base64 back to binary
+  const binaryBuffer = Buffer.from(audioBase64, 'base64');
+  const blob = new Blob([binaryBuffer], { type: `audio/${format}` });
+
+  const formData = new FormData();
+  formData.append('file', blob, `audio.${format}`);
+  formData.append('model', 'openai/whisper-1');
+  formData.append('language', 'es');
+
+  const res = await fetch(`${OR_BASE}/audio/transcriptions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
       'HTTP-Referer': 'https://wilduitmarketing.com',
       'X-Title': 'Wilduit VoiceMeet',
     },
-    body: JSON.stringify({
-      model: 'openai/gpt-4o-audio-preview',
-      modalities: ['text'],
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'input_audio',
-              input_audio: { data: audioBase64, format },
-            },
-            {
-              type: 'text',
-              text: 'Transcribe este audio con precisión. Devuelve SOLO el texto transcrito, sin comentarios adicionales. Si hay múltiples hablantes, separa sus intervenciones con saltos de línea.',
-            },
-          ],
-        },
-      ],
-    }),
+    body: formData,
   });
 
   if (!res.ok) {
@@ -50,7 +40,7 @@ export async function transcribeAudio(
   }
 
   const data = await res.json();
-  return data.choices?.[0]?.message?.content ?? '';
+  return data.text ?? '';
 }
 
 // ─── Summarization ─────────────────────────────────────────────────────────

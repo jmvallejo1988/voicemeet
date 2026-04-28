@@ -19,7 +19,8 @@ export async function transcribeAudio(
   groqKey: string,
   format: 'webm' | 'mp4' | 'wav' | 'ogg' | 'm4a' = 'webm'
 ): Promise<string> {
-  const blob = new Blob([audioBuffer], { type: `audio/${format}` });
+  const uint8 = new Uint8Array(audioBuffer.buffer, audioBuffer.byteOffset, audioBuffer.byteLength);
+  const blob = new Blob([uint8], { type: `audio/${format}` });
 
   const formData = new FormData();
   formData.append('file', blob, `audio.${format}`);

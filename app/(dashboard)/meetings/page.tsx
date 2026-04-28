@@ -13,6 +13,8 @@ export default function MeetingsPage() {
   const [calLoading, setCalLoading] = useState(false);
   const [sendingBot, setSendingBot] = useState<string | null>(null);
   const [tab,        setTab]        = useState<'calendar' | 'recordings'>('calendar');
+  const [manualUrl,  setManualUrl]  = useState('');
+  const [sendingManual, setSendingManual] = useState(false);
 
   const fetchMeetings = useCallback(async () => {
     const res = await fetch('/api/meetings');
@@ -87,6 +89,44 @@ export default function MeetingsPage() {
 
   function handleDelete(id: string) {
     setMeetings(prev => prev.filter(m => m.id !== id));
+  }
+
+  async function handleManualSend() {
+    const url = manualUrl.trim();
+    if (!url) return;
+    setSendingManual(true);
+    try {
+      const res = await fetch('/api/recall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meetingUrl: url, title: 'Reunión Manual' }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || 'No se pudo enviar el bot. Verifica tu API Key de Recall.ai en Configuración.');
+        return;
+      }
+      const { id } = await res.json();
+      const placeholder: Meeting = {
+        id, userId: '',
+        title: 'Reunión Manual',
+        meetSpaceId: '',
+        audioUrl: '', duration: 0,
+        startTime: new Date().toISOString(),
+        endTime: '',
+        transcript: '', summary: '', keyPoints: [], tasks: [],
+        attendees: [],
+        createdAt: new Date().toISOString(),
+        expiresAt: '',
+        status: 'pending',
+        emailSent: false,
+      };
+      setMeetings(prev => [placeholder, ...prev]);
+      setManualUrl('');
+      setTab('recordings');
+    } finally {
+      setSendingManual(false);
+    }
   }
 
   const today    = events.filter(e => e.minutesUntilStart > -120 && e.minutesUntilStart < 1440);
@@ -181,8 +221,43 @@ export default function MeetingsPage() {
             </div>
           )}
 
+          {/* Manual URL input — fallback si el calendario no carga */}
+          <div className="mt-5 w-card p-4">
+            <div className="text-xs font-mono font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--muted)' }}>
+              🔗 Enviar bot con link directo
+            </div>
+            <p className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
+              ¿No ves tu reunión arriba? Pega el link de Google Meet directamente.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={manualUrl}
+                onChange={e => setManualUrl(e.target.value)}
+                placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                className="flex-1 px-3 py-2 rounded-xl text-sm"
+                style={{
+                  background: 'var(--bg2)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  outline: 'none',
+                }}
+              />
+              <button
+                onClick={handleManualSend}
+                disabled={!manualUrl.trim() || sendingManual}
+                className="btn-3d btn-sm"
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                {sendingManual ? (
+                  <span className="dot-bounce text-xs"><span>·</span><span>·</span><span>·</span></span>
+                ) : '🤖 Enviar bot'}
+              </button>
+            </div>
+          </div>
+
           {/* How it works */}
-          <div className="mt-6 w-card p-4">
+          <div className="mt-4 w-card p-4">
             <div className="text-xs font-mono font-bold uppercase tracking-widest mb-3" style={{ color: 'var(--muted)' }}>
               ¿Cómo funciona?
             </div>

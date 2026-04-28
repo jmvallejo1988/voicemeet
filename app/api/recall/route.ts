@@ -16,10 +16,7 @@ export async function POST(req: NextRequest) {
   const settings = await getSettings(userId);
 
   if (!settings.recallKey) {
-    return NextResponse.json({ error: 'Recall.ai API key not configured. Add it in Settings.' }, { status: 400 });
-  }
-  if (!settings.openrouterKey) {
-    return NextResponse.json({ error: 'OpenRouter API key not configured. Add it in Settings.' }, { status: 400 });
+    return NextResponse.json({ error: 'Recall.ai API key no configurada. Agrégala en Configuración.' }, { status: 400 });
   }
 
   const { meetingUrl, title, startTime, endTime, attendees } = await req.json();

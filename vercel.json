@@ -4,9 +4,16 @@
   "installCommand": "npm install",
   "regions": ["iad1"],
   "functions": {
-    "app/api/recordings/route.ts":        { "maxDuration": 60 },
-    "app/api/meetings/route.ts":          { "maxDuration": 60 },
-    "app/api/recall/route.ts":            { "maxDuration": 30 },
-    "app/api/recall/webhook/route.ts":    { "maxDuration": 300 }
-  }
+    "app/api/recordings/route.ts":                       { "maxDuration": 60  },
+    "app/api/meetings/route.ts":                         { "maxDuration": 60  },
+    "app/api/recall/route.ts":                           { "maxDuration": 30  },
+    "app/api/recall/webhook/route.ts":                   { "maxDuration": 300 },
+    "app/api/cron/process-meetings/route.ts":            { "maxDuration": 300 }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/process-meetings",
+      "schedule": "* * * * *"
+    }
+  ]
 }

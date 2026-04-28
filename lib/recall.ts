@@ -8,13 +8,32 @@
 const RECALL_REGION = process.env.RECALL_REGION ?? 'us-west-2';
 const RECALL_BASE = `https://${RECALL_REGION}.recall.ai/api/v1`;
 
+export interface RecallBotRecording {
+  id: string;
+  started_at: string;
+  completed_at: string;
+  download_url?: string;                // legacy field (may be absent in new API)
+  media_shortcuts?: {
+    video_mixed?: {
+      data?: {
+        download_url?: string;
+      };
+    };
+    audio_mixed?: {
+      data?: {
+        download_url?: string;
+      };
+    };
+  };
+}
+
 export interface RecallBot {
   id: string;
   meeting_url: string;
   status_changes: Array<{ code: string; created_at: string; sub_code?: string; message?: string }>;
   video_url?: string;
   mp4_download_url?: string;
-  recordings?: Array<{ id: string; started_at: string; completed_at: string; download_url: string }>;
+  recordings?: RecallBotRecording[];
 }
 
 export type BotStatus =
@@ -71,10 +90,19 @@ export function getBotStatusCode(bot: RecallBot): BotStatus {
   return bot.status_changes[bot.status_changes.length - 1].code as BotStatus;
 }
 
-/** Get the audio download URL from a completed bot */
+/** Get the audio/video download URL from a completed bot.
+ *  New Recall.ai API (2024+): URL lives at recordings[0].media_shortcuts.video_mixed.data.download_url
+ *  Legacy fallback: recordings[0].download_url or top-level mp4_download_url
+ */
 export function getBotAudioUrl(bot: RecallBot): string | null {
   const rec = bot.recordings?.[0];
-  return rec?.download_url ?? bot.mp4_download_url ?? null;
+  return (
+    rec?.media_shortcuts?.video_mixed?.data?.download_url ??
+    rec?.media_shortcuts?.audio_mixed?.data?.download_url ??
+    rec?.download_url ??
+    bot.mp4_download_url ??
+    null
+  );
 }
 
 /** Human-readable status label */

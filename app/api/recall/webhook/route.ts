@@ -2,14 +2,15 @@
  * Recall.ai Webhook
  * Receives events when a bot's status changes (recording done, etc.)
  * Configure in Recall.ai dashboard → Webhooks → https://your-app.vercel.app/api/recall/webhook
+ *
+ * NOTE: Even if this webhook is not configured, the Vercel cron job at
+ * /api/cron/process-meetings will pick up completed recordings every minute.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { kv } from '@/lib/kv';
-import { getBot, getBotAudioUrl, getBotStatusCode } from '@/lib/recall';
-import { updateMeeting, uploadAudio, getSettings } from '@/lib/storage';
-import { transcribeAudio, summarizeText } from '@/lib/openrouter';
-import { sendMeetingReport } from '@/lib/email';
+import { getBotStatusCode } from '@/lib/recall';
+import { processMeeting } from '@/lib/process-meeting';
 import type { Meeting } from '@/types';
 
 export async function POST(req: NextRequest) {
@@ -18,6 +19,8 @@ export async function POST(req: NextRequest) {
   const event  = body?.event  as string;
   const botId  = body?.data?.bot_id as string;
   const status = body?.data?.status?.code as string;
+
+  console.log(`[Webhook] event=${event} botId=${botId} status=${status}`);
 
   // We only care about the "done" status (recording complete)
   if (event !== 'bot.status_change' || status !== 'done') {
@@ -31,77 +34,24 @@ export async function POST(req: NextRequest) {
     : null;
 
   if (!meeting) {
-    console.warn('Webhook: no meeting found for botId', botId);
+    console.warn('[Webhook] No meeting found for botId', botId);
     return NextResponse.json({ ok: true });
   }
 
-  await updateMeeting(meeting.id, { status: 'processing' });
+  // Already processing or processed (e.g. cron beat us to it)
+  if (meeting.status !== 'pending') {
+    console.log(`[Webhook] Meeting ${meeting.id} already in status ${meeting.status}, skipping`);
+    return NextResponse.json({ ok: true });
+  }
 
-  // Process async
+  // Return immediately to Recall.ai (prevents retry), process async
   (async () => {
     try {
-      const settings = await getSettings(meeting!.userId);
-      if (!settings.recallKey) {
-        await updateMeeting(meeting!.id, { status: 'error' });
-        return;
-      }
-
-      // Get bot data & audio URL
-      const bot      = await getBot(botId, settings.recallKey);
-      const audioUrl = getBotAudioUrl(bot);
-
-      let uploadedUrl = '';
-      let transcript  = '';
-
-      if (audioUrl) {
-        // Download audio from Recall
-        const audioRes = await fetch(audioUrl);
-        const buffer   = Buffer.from(await audioRes.arrayBuffer());
-
-        // Upload to Vercel Blob
-        uploadedUrl = await uploadAudio(buffer, `meetings/${meeting!.userId}/${meeting!.id}.mp4`);
-
-        // Transcribe con Groq (si hay key) o saltar
-        if (settings.groqKey) {
-          transcript = await transcribeAudio(buffer, settings.groqKey, 'mp4');
-        }
-      }
-
-      // Summarize
-      const result = await summarizeText(
-        transcript || 'Reunión grabada automáticamente. No se pudo extraer transcripción.',
-        settings.openrouterKey,
-        'meeting'
-      );
-
-      await updateMeeting(meeting!.id, {
-        audioUrl: uploadedUrl,
-        transcript: result.transcript,
-        summary: result.summary,
-        keyPoints: result.keyPoints,
-        tasks: result.tasks,
-        status: 'ready',
-      });
-
-      // Send email report
-      if (settings.notifyEmail) {
-        try {
-          // Need the access token — get from session (stored in KV by userId)
-          const accessToken = await kv.get<string>(`token:${meeting!.userId}`);
-          if (accessToken) {
-            const updatedMeeting = await kv.get<Meeting>(`meeting:${meeting!.id}`);
-            if (updatedMeeting) {
-              await sendMeetingReport(accessToken, meeting!.userId, updatedMeeting);
-              await updateMeeting(meeting!.id, { emailSent: true });
-            }
-          }
-        } catch (e) {
-          console.warn('Email send failed:', e);
-        }
-      }
+      await processMeeting(meeting, botId);
+      // Clean up the bot index key
+      await kv.del(`bot:${botId}`);
     } catch (err) {
-      console.error('Webhook processing error:', err);
-      await updateMeeting(meeting!.id, { status: 'error' });
+      console.error('[Webhook] processMeeting failed:', err);
     }
   })();
 

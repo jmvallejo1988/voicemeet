@@ -4,7 +4,9 @@
  * Region: us-west-2 (change if needed)
  */
 
-const RECALL_BASE = 'https://us-west-2.recall.ai/api/v1';
+// Use the region from env var or default to us-west-2
+const RECALL_REGION = process.env.RECALL_REGION ?? 'us-west-2';
+const RECALL_BASE = `https://${RECALL_REGION}.recall.ai/api/v1`;
 
 export interface RecallBot {
   id: string;

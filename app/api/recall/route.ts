@@ -24,7 +24,14 @@ export async function POST(req: NextRequest) {
   if (!meetingUrl) return NextResponse.json({ error: 'meetingUrl is required' }, { status: 400 });
 
   // Create the Recall bot
-  const bot = await createBot({ meetingUrl, apiKey: settings.recallKey });
+  let bot;
+  try {
+    bot = await createBot({ meetingUrl, apiKey: settings.recallKey });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[VoiceMeet] createBot error:', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 
   // Save meeting record
   const id  = randomUUID();

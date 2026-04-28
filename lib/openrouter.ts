@@ -19,8 +19,8 @@ export async function transcribeAudio(
   groqKey: string,
   format: 'webm' | 'mp4' | 'wav' | 'ogg' | 'm4a' = 'webm'
 ): Promise<string> {
-  const uint8 = new Uint8Array(audioBuffer.buffer, audioBuffer.byteOffset, audioBuffer.byteLength);
-  const blob = new Blob([uint8], { type: `audio/${format}` });
+  // Uint8Array.from() produces Uint8Array<ArrayBuffer> (not ArrayBufferLike) — required by Node 24 types
+  const blob = new Blob([Uint8Array.from(audioBuffer)], { type: `audio/${format}` });
 
   const formData = new FormData();
   formData.append('file', blob, `audio.${format}`);

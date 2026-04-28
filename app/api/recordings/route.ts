@@ -75,7 +75,9 @@ export async function POST(req: NextRequest) {
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : JSON.stringify(err);
-      console.error('Recording processing error:', msg);
+      const stack = err instanceof Error ? err.stack : '';
+      console.error('[VoiceMeet] Recording processing error:', msg);
+      console.error('[VoiceMeet] Stack:', stack);
       await updateRecording(id, { status: 'error' });
     }
   })();

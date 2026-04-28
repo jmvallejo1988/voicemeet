@@ -1,46 +1,62 @@
 /**
  * OpenRouter utilities
- * - transcribeAudio  → GPT-4o Audio Preview  (audio → text)
+ * - transcribeAudio  → GPT-4o Audio Preview via chat completions (audio → text)
  * - summarizeText    → GPT-4o Text           (text  → JSON summary)
+ *
+ * NOTE: OpenRouter does NOT expose /audio/transcriptions.
+ * We use chat completions with input_audio content type instead.
  */
 
 import type { SummaryResult } from '@/types';
 
 const OR_BASE = 'https://openrouter.ai/api/v1';
 
-// ─── Transcription via Whisper (multipart) ─────────────────────────────────
+// ─── Transcription via GPT-4o Audio Preview (chat completions) ─────────────
 
 export async function transcribeAudio(
   audioBase64: string,
   apiKey: string,
   format: 'webm' | 'mp4' | 'wav' | 'ogg' = 'webm'
 ): Promise<string> {
-  // Convert base64 back to binary
-  const binaryBuffer = Buffer.from(audioBase64, 'base64');
-  const blob = new Blob([binaryBuffer], { type: `audio/${format}` });
-
-  const formData = new FormData();
-  formData.append('file', blob, `audio.${format}`);
-  formData.append('model', 'openai/whisper-1');
-  formData.append('language', 'es');
-
-  const res = await fetch(`${OR_BASE}/audio/transcriptions`, {
+  const res = await fetch(`${OR_BASE}/chat/completions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
       'HTTP-Referer': 'https://wilduitmarketing.com',
       'X-Title': 'Wilduit VoiceMeet',
     },
-    body: formData,
+    body: JSON.stringify({
+      model: 'openai/gpt-4o-audio-preview',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_audio',
+              input_audio: {
+                data: audioBase64,
+                format: format === 'mp4' ? 'mp4' : format, // webm, wav, ogg, mp4 all supported
+              },
+            },
+            {
+              type: 'text',
+              text: 'Transcribe este audio con precisión. Devuelve únicamente el texto transcrito, sin explicaciones ni comentarios adicionales.',
+            },
+          ],
+        },
+      ],
+    }),
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`OpenRouter transcription error ${res.status}: ${err}`);
+    const errText = await res.text();
+    throw new Error(`OpenRouter transcription error ${res.status}: ${errText}`);
   }
 
   const data = await res.json();
-  return data.text ?? '';
+  const content = data.choices?.[0]?.message?.content ?? '';
+  return content;
 }
 
 // ─── Summarization ─────────────────────────────────────────────────────────

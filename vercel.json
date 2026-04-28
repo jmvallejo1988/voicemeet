@@ -13,7 +13,7 @@
   "crons": [
     {
       "path": "/api/cron/process-meetings",
-      "schedule": "* * * * *"
+      "schedule": "0 2 * * *"
     }
   ]
 }

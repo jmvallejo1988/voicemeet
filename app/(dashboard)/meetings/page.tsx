@@ -29,20 +29,31 @@ export default function MeetingsPage() {
     setCalLoading(false);
   }, []);
 
+  // Call /api/meetings/check to trigger processing of pending meetings
+  const checkPending = useCallback(async () => {
+    try {
+      await fetch('/api/meetings/check', { method: 'POST' });
+    } catch {}
+  }, []);
+
   useEffect(() => {
     fetchMeetings();
     fetchCalendar();
-    // Poll every 8s for processing meetings
+
+    // Every 10s: if there are pending/processing meetings,
+    // (a) trigger check+process via the check endpoint
+    // (b) refresh the meeting list
     const interval = setInterval(() => {
       setMeetings(prev => {
         if (prev.some(m => m.status === 'processing' || m.status === 'pending')) {
-          fetchMeetings();
+          checkPending();   // trigger bot-status check and processing
+          fetchMeetings();  // refresh the list
         }
         return prev;
       });
-    }, 8000);
+    }, 10000);
     return () => clearInterval(interval);
-  }, [fetchMeetings, fetchCalendar]);
+  }, [fetchMeetings, fetchCalendar, checkPending]);
 
   async function handleSendBot(event: CalendarEvent) {
     if (!event.meetLink) return;

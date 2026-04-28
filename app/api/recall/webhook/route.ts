@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   (async () => {
     try {
       const settings = await getSettings(meeting!.userId);
-      if (!settings.openrouterKey || !settings.recallKey) {
+      if (!settings.recallKey) {
         await updateMeeting(meeting!.id, { status: 'error' });
         return;
       }
@@ -61,9 +61,10 @@ export async function POST(req: NextRequest) {
         // Upload to Vercel Blob
         uploadedUrl = await uploadAudio(buffer, `meetings/${meeting!.userId}/${meeting!.id}.mp4`);
 
-        // Transcribe
-        const base64   = buffer.toString('base64');
-        transcript = await transcribeAudio(base64, settings.openrouterKey, 'mp4');
+        // Transcribe con Groq (si hay key) o saltar
+        if (settings.groqKey) {
+          transcript = await transcribeAudio(buffer, settings.groqKey, 'mp4');
+        }
       }
 
       // Summarize

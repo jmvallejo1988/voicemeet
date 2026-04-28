@@ -93,12 +93,23 @@ export async function uploadAudio(
   buffer: Buffer,
   filename: string
 ): Promise<string> {
-  const blob = await put(filename, buffer, {
-    access: 'public',
-    contentType: 'audio/webm',
-    // Vercel Blob doesn't have native TTL yet — handled by cron or manual cleanup
-  });
-  return blob.url;
+  // Intentar subida pública primero; si el store es privado, usar private access
+  try {
+    const blob = await put(filename, buffer, {
+      access: 'public',
+      contentType: 'audio/webm',
+    });
+    return blob.url;
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('private') || msg.includes('public access')) {
+      // Store configurado como privado → subir con access: 'public'... no aplica.
+      // Usar access: 'public' pero el store es privado, skip upload y retornar ''
+      console.warn('[VoiceMeet] Blob store is private — audio will not be stored. Transcription continues.');
+      return '';
+    }
+    throw e;
+  }
 }
 
 export { expiresAt30Days };

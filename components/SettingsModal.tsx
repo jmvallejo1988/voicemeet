@@ -4,17 +4,20 @@ import { useState, useEffect } from 'react';
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [openrouterKey, setOpenrouterKey] = useState('');
-  const [recallKey, setRecallKey]         = useState('');
+  const [groqKey,       setGroqKey]       = useState('');
+  const [recallKey,     setRecallKey]     = useState('');
   const [notify, setNotify]               = useState(true);
   const [saving, setSaving]               = useState(false);
   const [saved,  setSaved]                = useState(false);
   const [orSaved,   setOrSaved]           = useState(false);
+  const [groqSaved, setGroqSaved]         = useState(false);
   const [recSaved,  setRecSaved]          = useState(false);
 
   useEffect(() => {
     if (!open) return;
     fetch('/api/settings').then(r => r.json()).then(d => {
       setOrSaved(d.openrouterKey === '***SAVED***');
+      setGroqSaved(d.groqKey     === '***SAVED***');
       setRecSaved(d.recallKey    === '***SAVED***');
       setNotify(d.notifyEmail ?? true);
     });
@@ -24,6 +27,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     setSaving(true);
     const body: any = { notifyEmail: notify };
     if (openrouterKey) body.openrouterKey = openrouterKey;
+    if (groqKey)       body.groqKey       = groqKey;
     if (recallKey)     body.recallKey     = recallKey;
     await fetch('/api/settings', {
       method: 'POST',
@@ -32,8 +36,9 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     });
     setSaving(false); setSaved(true);
     if (openrouterKey) setOrSaved(true);
+    if (groqKey)       setGroqSaved(true);
     if (recallKey)     setRecSaved(true);
-    setOpenrouterKey(''); setRecallKey('');
+    setOpenrouterKey(''); setGroqKey(''); setRecallKey('');
     setTimeout(() => { setSaved(false); onClose(); }, 1100);
   }
 
@@ -95,12 +100,28 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
 
         {/* Body */}
         <div className="px-6 py-5 space-y-5">
+          {/* Banner info Groq */}
+          <div className="rounded-xl px-4 py-3 text-xs leading-relaxed"
+            style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.25)', color: 'var(--text2)' }}>
+            <strong style={{ color: '#34d399' }}>🎙 Transcripción GRATIS con Groq</strong>
+            <span style={{ color: 'var(--muted)' }}> — Crea tu cuenta en </span>
+            <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" style={{ color: '#34d399' }}>console.groq.com/keys</a>
+            <span style={{ color: 'var(--muted)' }}> (es completamente gratuito)</span>
+          </div>
+
           <KeyField
-            label="OpenRouter API Key"
+            label="Groq API Key (Transcripción) *"
+            link="https://console.groq.com/keys" linkLabel="console.groq.com/keys"
+            saved={groqSaved} value={groqKey} onChange={setGroqKey}
+            placeholder="gsk_..."
+            hint="Obligatorio para transcribir audio. 100% gratuito."
+          />
+          <KeyField
+            label="OpenRouter API Key (Resúmenes)"
             link="https://openrouter.ai/keys" linkLabel="openrouter.ai/keys"
             saved={orSaved} value={openrouterKey} onChange={setOpenrouterKey}
             placeholder="sk-or-..."
-            hint="Para transcripción (GPT-4o Audio) y resúmenes (GPT-4o)."
+            hint="Opcional. Para generar resúmenes y puntos clave con GPT-4o mini."
           />
           <KeyField
             label="Recall.ai API Key"

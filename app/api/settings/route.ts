@@ -12,7 +12,8 @@ export async function GET() {
   return NextResponse.json({
     ...settings,
     openrouterKey: settings.openrouterKey ? '***SAVED***' : '',
-    recallKey:     (settings as any).recallKey     ? '***SAVED***' : '',
+    groqKey:       settings.groqKey       ? '***SAVED***' : '',
+    recallKey:     settings.recallKey     ? '***SAVED***' : '',
   });
 }
 

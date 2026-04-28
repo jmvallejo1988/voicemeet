@@ -37,6 +37,7 @@ export interface Meeting {
 
 export interface UserSettings {
   openrouterKey: string;
+  groqKey:       string;
   recallKey:     string;
   theme: 'dark' | 'light';
   notifyEmail: boolean;

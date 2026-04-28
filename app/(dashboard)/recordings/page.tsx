@@ -38,27 +38,12 @@ export default function RecordingsPage() {
     form.append('title', title);
 
     const res = await fetch('/api/recordings', { method: 'POST', body: form });
+    const data = await res.json();
     if (res.ok) {
-      const { id } = await res.json();
-      // Add placeholder
-      const placeholder: Recording = {
-        id,
-        userId: '',
-        title,
-        audioUrl: '',
-        duration,
-        transcript: '',
-        summary: '',
-        keyPoints: [],
-        tasks: [],
-        createdAt: new Date().toISOString(),
-        expiresAt: '',
-        status: 'processing',
-      };
-      setRecordings(prev => [placeholder, ...prev]);
+      // El procesamiento es síncrono — re-fetch para mostrar el estado actualizado
+      await fetchRecordings();
     } else {
-      const err = await res.json();
-      alert(err.error || 'Error al subir la grabación. ¿Tienes la API Key configurada?');
+      alert(data.error || 'Error al procesar la grabación. Revisa tu Groq API Key en Configuración.');
     }
     setUploading(false);
   }

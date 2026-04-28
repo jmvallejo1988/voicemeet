@@ -14,7 +14,7 @@ function expiresAt30Days(): string {
 
 export async function getSettings(userId: string): Promise<UserSettings> {
   const s = await kv.get<UserSettings>(`settings:${userId}`);
-  return s ?? { openrouterKey: '', recallKey: '', theme: 'dark', notifyEmail: true };
+  return s ?? { openrouterKey: '', groqKey: '', recallKey: '', theme: 'dark', notifyEmail: true };
 }
 
 export async function saveSettings(userId: string, settings: Partial<UserSettings>) {

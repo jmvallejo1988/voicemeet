@@ -1,62 +1,48 @@
 /**
- * OpenRouter utilities
- * - transcribeAudio  → GPT-4o Audio Preview via chat completions (audio → text)
- * - summarizeText    → GPT-4o Text           (text  → JSON summary)
+ * OpenRouter / Groq utilities
+ * - transcribeAudio  → Groq Whisper-large-v3 (gratuito, rápido, soporta webm)
+ * - summarizeText    → OpenRouter GPT-4o-mini (text → JSON summary)
  *
- * NOTE: OpenRouter does NOT expose /audio/transcriptions.
- * We use chat completions with input_audio content type instead.
+ * IMPORTANTE: OpenRouter NO expone /audio/transcriptions.
+ * Usamos Groq (gratis) para transcripción. El groqKey viene de UserSettings.
  */
 
 import type { SummaryResult } from '@/types';
 
-const OR_BASE = 'https://openrouter.ai/api/v1';
+const OR_BASE   = 'https://openrouter.ai/api/v1';
+const GROQ_BASE = 'https://api.groq.com/openai/v1';
 
-// ─── Transcription via GPT-4o Audio Preview (chat completions) ─────────────
+// ─── Transcription via Groq Whisper (multipart, gratis) ────────────────────
 
 export async function transcribeAudio(
-  audioBase64: string,
-  apiKey: string,
-  format: 'webm' | 'mp4' | 'wav' | 'ogg' = 'webm'
+  audioBuffer: Buffer,
+  groqKey: string,
+  format: 'webm' | 'mp4' | 'wav' | 'ogg' | 'm4a' = 'webm'
 ): Promise<string> {
-  const res = await fetch(`${OR_BASE}/chat/completions`, {
+  const blob = new Blob([audioBuffer], { type: `audio/${format}` });
+
+  const formData = new FormData();
+  formData.append('file', blob, `audio.${format}`);
+  formData.append('model', 'whisper-large-v3');
+  formData.append('language', 'es');
+  formData.append('response_format', 'text');
+
+  const res = await fetch(`${GROQ_BASE}/audio/transcriptions`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://wilduitmarketing.com',
-      'X-Title': 'Wilduit VoiceMeet',
+      Authorization: `Bearer ${groqKey}`,
     },
-    body: JSON.stringify({
-      model: 'openai/gpt-4o-audio-preview',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'input_audio',
-              input_audio: {
-                data: audioBase64,
-                format: format === 'mp4' ? 'mp4' : format, // webm, wav, ogg, mp4 all supported
-              },
-            },
-            {
-              type: 'text',
-              text: 'Transcribe este audio con precisión. Devuelve únicamente el texto transcrito, sin explicaciones ni comentarios adicionales.',
-            },
-          ],
-        },
-      ],
-    }),
+    body: formData,
   });
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`OpenRouter transcription error ${res.status}: ${errText}`);
+    throw new Error(`Groq transcription error ${res.status}: ${errText}`);
   }
 
-  const data = await res.json();
-  const content = data.choices?.[0]?.message?.content ?? '';
-  return content;
+  // response_format: 'text' devuelve texto plano (no JSON)
+  const text = await res.text();
+  return text.trim();
 }
 
 // ─── Summarization ─────────────────────────────────────────────────────────
@@ -94,7 +80,7 @@ Responde ÚNICAMENTE con el JSON, sin markdown, sin explicaciones adicionales.`;
       'X-Title': 'Wilduit VoiceMeet',
     },
     body: JSON.stringify({
-      model: 'openai/gpt-4o',
+      model: 'openai/gpt-4o-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },

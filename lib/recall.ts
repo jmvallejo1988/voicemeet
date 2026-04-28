@@ -37,8 +37,6 @@ export async function createBot(params: {
     body: JSON.stringify({
       meeting_url: params.meetingUrl,
       bot_name: params.botName ?? 'Wilduit Notetaker',
-      recording_mode: 'audio_only',
-      transcription_options: { provider: 'none' },
       automatic_leave: {
         everyone_left_timeout: 120,   // leave 2 min after everyone gone
         silence_detection_timeout: 1800, // leave after 30 min silence

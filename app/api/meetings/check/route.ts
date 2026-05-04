@@ -26,9 +26,17 @@ export async function POST() {
   const userId = session.user.email;
 
   try {
-    // Get all pending meetings for this user
+    // Get all pending meetings for this user.
+    // Also pick up 'processing' meetings that are older than 3 minutes — these
+    // got stuck mid-pipeline (e.g. Blob upload failed) and need a retry.
     const meetings = await listMeetings(userId);
-    const pending = meetings.filter(m => m.status === 'pending');
+    const staleProcessingMs = 10 * 60 * 1000; // 10 min — tiempo suficiente para que el pipeline termine normalmente
+    const now = Date.now();
+    const pending = meetings.filter(m =>
+      m.status === 'pending' ||
+      (m.status === 'processing' &&
+        now - new Date(m.createdAt).getTime() > staleProcessingMs)
+    );
 
     if (pending.length === 0) {
       return NextResponse.json({ ok: true, processed: 0, message: 'No pending meetings' });

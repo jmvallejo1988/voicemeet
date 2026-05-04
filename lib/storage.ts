@@ -89,26 +89,45 @@ export async function deleteMeeting(id: string, userId: string): Promise<void> {
 
 // ─── Blob upload ───────────────────────────────────────────────────────────
 
+function getContentType(filename: string): string {
+  if (filename.endsWith('.mp4')) return 'video/mp4';
+  if (filename.endsWith('.mp3')) return 'audio/mpeg';
+  if (filename.endsWith('.webm')) return 'audio/webm';
+  if (filename.endsWith('.ogg')) return 'audio/ogg';
+  return 'audio/mpeg';
+}
+
 export async function uploadAudio(
   buffer: Buffer,
   filename: string
 ): Promise<string> {
-  // Intentar subida pública primero; si el store es privado, usar private access
+  const contentType = getContentType(filename);
+
+  // Intentar primero con access: 'public'
   try {
-    const blob = await put(filename, buffer, {
-      access: 'public',
-      contentType: 'audio/webm',
-    });
+    const blob = await put(filename, buffer, { access: 'public', contentType });
+    console.log(`[VoiceMeet] Audio uploaded (public): ${blob.url}`);
     return blob.url;
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes('private') || msg.includes('public access')) {
-      // Store configurado como privado → subir con access: 'public'... no aplica.
-      // Usar access: 'public' pero el store es privado, skip upload y retornar ''
-      console.warn('[VoiceMeet] Blob store is private — audio will not be stored. Transcription continues.');
-      return '';
-    }
-    throw e;
+    const isPrivateStoreError =
+      msg.includes('private') ||
+      msg.includes('public access') ||
+      msg.includes('not allowed') ||
+      msg.includes('forbidden');
+
+    if (!isPrivateStoreError) throw e; // error inesperado → propagar
+  }
+
+  // Fallback: subir como private (funciona con store en modo enforced-private)
+  try {
+    const blob = await put(filename, buffer, { access: 'private', contentType });
+    console.log(`[VoiceMeet] Audio uploaded (private): ${blob.url}`);
+    return blob.url;
+  } catch (e2: unknown) {
+    // Si tampoco funciona, continuar sin audio (transcripción se guarda igual)
+    console.warn('[VoiceMeet] Blob upload failed — audio will not be stored. Transcript continues.', e2);
+    return '';
   }
 }
 

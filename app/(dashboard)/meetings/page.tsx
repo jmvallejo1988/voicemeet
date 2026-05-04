@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { upload } from '@vercel/blob/client';
 import { MeetingCard } from '@/components/MeetingCard';
 import { CalendarEventCard } from '@/components/CalendarEventCard';
 import type { Meeting } from '@/types';
@@ -149,22 +150,37 @@ export default function MeetingsPage() {
     }
   }
 
+  const [uploadProgress, setUploadProgress] = useState('');
+
   async function handleUpload() {
     if (!uploadFile) return;
     setUploading(true);
     setUploadError('');
     setUploadResult(null);
+    setUploadProgress('Subiendo archivo...');
     try {
-      const form = new FormData();
-      form.append('file', uploadFile);
-      const res = await fetch('/api/transcribe-upload', { method: 'POST', body: form });
+      // 1. Subir directo a Vercel Blob (evita límite 4.5MB de serverless)
+      const blob = await upload(uploadFile.name, uploadFile, {
+        access: 'public',
+        handleUploadUrl: '/api/blob-upload',
+      });
+
+      // 2. Llamar al servidor con la URL del blob (payload pequeño)
+      setUploadProgress('Transcribiendo con Groq Whisper...');
+      const res = await fetch('/api/transcribe-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ blobUrl: blob.url, filename: uploadFile.name }),
+      });
       const data = await res.json();
       if (!res.ok) { setUploadError(data.error || 'Error al procesar el archivo.'); return; }
       setUploadResult(data);
-    } catch {
-      setUploadError('Error de red. Intenta de nuevo.');
+    } catch (e) {
+      setUploadError('Error al subir el archivo. Verifica tu conexión e intenta de nuevo.');
+      console.error(e);
     } finally {
       setUploading(false);
+      setUploadProgress('');
     }
   }
 
@@ -380,7 +396,7 @@ export default function MeetingsPage() {
           {uploading && (
             <div className="w-card p-6 text-center mt-3">
               <div className="dot-bounce text-xl mb-2"><span>·</span><span>·</span><span>·</span></div>
-              <p className="text-sm" style={{ color: 'var(--muted)' }}>Transcribiendo con Groq Whisper...</p>
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>{uploadProgress || 'Procesando...'}</p>
             </div>
           )}
 

@@ -34,8 +34,10 @@ export async function POST() {
     const now = Date.now();
     const pending = meetings.filter(m =>
       m.status === 'pending' ||
-      (m.status === 'processing' &&
-        now - new Date(m.createdAt).getTime() > staleProcessingMs)
+      // Reuniones atascadas en 'processing' por más de 10 min → reintentar
+      (m.status === 'processing' && now - new Date(m.createdAt).getTime() > staleProcessingMs) ||
+      // Reuniones en 'error' que tienen botId → pueden reintentarse
+      (m.status === 'error' && !!m.meetSpaceId)
     );
 
     if (pending.length === 0) {

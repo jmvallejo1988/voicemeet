@@ -72,6 +72,19 @@ ${transcript}
 
 Responde ÚNICAMENTE con el JSON, sin markdown, sin explicaciones adicionales.`;
 
+  // Sin API key → resumen local sin llamada externa
+  if (!apiKey) {
+    console.warn('[VoiceMeet] No OpenRouter key — using local fallback summary.');
+    const sentences = transcript.split(/[.!?]\s+/).filter(s => s.trim().length > 20);
+    return {
+      transcript,
+      summary: transcript.slice(0, 300) ||
+        'Reunión procesada. Agrega tu OpenRouter API key en Configuración para obtener resúmenes con IA.',
+      keyPoints: sentences.slice(0, 3),
+      tasks: [],
+    };
+  }
+
   const res = await fetch(`${OR_BASE}/chat/completions`, {
     method: 'POST',
     headers: {

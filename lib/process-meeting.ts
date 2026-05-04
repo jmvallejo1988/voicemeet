@@ -46,7 +46,11 @@ export async function processMeeting(meeting: Meeting, botId: string): Promise<v
 
       // Transcribe with Groq if key is configured
       if (settings.groqKey) {
-        transcript = await transcribeAudio(buffer, settings.groqKey, 'mp4');
+        try {
+          transcript = await transcribeAudio(buffer, settings.groqKey, 'mp4');
+        } catch (tErr) {
+          console.warn('[VoiceMeet] Transcription failed — continuing without transcript:', tErr);
+        }
       }
     }
 

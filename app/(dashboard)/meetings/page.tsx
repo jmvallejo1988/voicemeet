@@ -12,9 +12,18 @@ export default function MeetingsPage() {
   const [loading,    setLoading]    = useState(true);
   const [calLoading, setCalLoading] = useState(false);
   const [sendingBot, setSendingBot] = useState<string | null>(null);
-  const [tab,        setTab]        = useState<'calendar' | 'recordings'>('calendar');
+  const [tab,        setTab]        = useState<'calendar' | 'recordings' | 'upload'>('calendar');
   const [manualUrl,  setManualUrl]  = useState('');
   const [sendingManual, setSendingManual] = useState(false);
+
+  // Upload transcription state
+  const [uploadFile,    setUploadFile]    = useState<File | null>(null);
+  const [uploading,     setUploading]     = useState(false);
+  const [uploadResult,  setUploadResult]  = useState<{
+    filename: string; transcript: string; summary: string;
+    keyPoints: string[]; tasks: string[]; noGroqKey?: boolean;
+  } | null>(null);
+  const [uploadError, setUploadError] = useState('');
 
   const fetchMeetings = useCallback(async () => {
     const res = await fetch('/api/meetings');
@@ -140,6 +149,25 @@ export default function MeetingsPage() {
     }
   }
 
+  async function handleUpload() {
+    if (!uploadFile) return;
+    setUploading(true);
+    setUploadError('');
+    setUploadResult(null);
+    try {
+      const form = new FormData();
+      form.append('file', uploadFile);
+      const res = await fetch('/api/transcribe-upload', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) { setUploadError(data.error || 'Error al procesar el archivo.'); return; }
+      setUploadResult(data);
+    } catch {
+      setUploadError('Error de red. Intenta de nuevo.');
+    } finally {
+      setUploading(false);
+    }
+  }
+
   const today    = events.filter(e => e.minutesUntilStart > -120 && e.minutesUntilStart < 1440);
   const upcoming = events.filter(e => e.minutesUntilStart >= 1440);
 
@@ -158,6 +186,7 @@ export default function MeetingsPage() {
         {([
           { key: 'calendar',   label: 'Mi Calendario', icon: '📅' },
           { key: 'recordings', label: `Grabaciones${meetings.length ? ` (${meetings.length})` : ''}`, icon: '🎙' },
+          { key: 'upload',     label: 'Subir archivo', icon: '⬆️' },
         ] as const).map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className="flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-all"
@@ -292,6 +321,143 @@ export default function MeetingsPage() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── UPLOAD TAB ── */}
+      {tab === 'upload' && (
+        <div>
+          {/* Drop zone */}
+          <div
+            className="w-card p-6 text-center cursor-pointer transition-all"
+            style={{ border: '2px dashed var(--border2)' }}
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => {
+              e.preventDefault();
+              const f = e.dataTransfer.files[0];
+              if (f) { setUploadFile(f); setUploadResult(null); setUploadError(''); }
+            }}
+            onClick={() => document.getElementById('upload-input')?.click()}
+          >
+            <input
+              id="upload-input"
+              type="file"
+              className="hidden"
+              accept="audio/*,video/*,.mp3,.mp4,.m4a,.wav,.webm,.ogg,.flac,.mov,.avi,.mkv"
+              onChange={e => {
+                const f = e.target.files?.[0];
+                if (f) { setUploadFile(f); setUploadResult(null); setUploadError(''); }
+              }}
+            />
+            {uploadFile ? (
+              <div>
+                <div className="text-3xl mb-2">🎵</div>
+                <p className="font-semibold text-sm" style={{ color: 'var(--text)' }}>{uploadFile.name}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                  {(uploadFile.size / 1024 / 1024).toFixed(1)} MB · Click para cambiar
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="text-4xl mb-3">⬆️</div>
+                <p className="font-semibold" style={{ color: 'var(--text)' }}>Arrastra o haz click para subir</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                  MP3, MP4, M4A, WAV, WEBM, OGG, FLAC, MOV, AVI, MKV · Máx. 25MB
+                </p>
+              </div>
+            )}
+          </div>
+
+          {uploadFile && !uploading && (
+            <button
+              onClick={handleUpload}
+              className="btn-3d w-full mt-3"
+            >
+              🤖 Transcribir y resumir
+            </button>
+          )}
+
+          {uploading && (
+            <div className="w-card p-6 text-center mt-3">
+              <div className="dot-bounce text-xl mb-2"><span>·</span><span>·</span><span>·</span></div>
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>Transcribiendo con Groq Whisper...</p>
+            </div>
+          )}
+
+          {uploadError && (
+            <div className="mt-3 p-4 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>
+              ⚠️ {uploadError}
+            </div>
+          )}
+
+          {uploadResult && (
+            <div className="mt-4 space-y-3">
+              {uploadResult.noGroqKey && (
+                <div className="p-3 rounded-xl text-xs" style={{ background: 'var(--accent-light)', color: 'var(--accent-dark)' }}>
+                  💡 Agrega tu Groq API key en Configuración para obtener transcripciones reales.
+                </div>
+              )}
+
+              {/* Summary */}
+              <div className="w-card p-4">
+                <div className="text-xs font-mono font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--muted)' }}>
+                  Resumen
+                </div>
+                <p className="text-sm" style={{ color: 'var(--text)' }}>{uploadResult.summary}</p>
+              </div>
+
+              {/* Key Points */}
+              {uploadResult.keyPoints.length > 0 && (
+                <div className="w-card p-4">
+                  <div className="text-xs font-mono font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--muted)' }}>
+                    Puntos clave
+                  </div>
+                  <ul className="space-y-1">
+                    {uploadResult.keyPoints.map((p, i) => (
+                      <li key={i} className="flex gap-2 text-sm" style={{ color: 'var(--text)' }}>
+                        <span style={{ color: 'var(--accent)' }}>→</span> {p}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Tasks */}
+              {uploadResult.tasks.length > 0 && (
+                <div className="w-card p-4">
+                  <div className="text-xs font-mono font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--muted)' }}>
+                    Tareas
+                  </div>
+                  <ul className="space-y-1">
+                    {uploadResult.tasks.map((t, i) => (
+                      <li key={i} className="flex gap-2 text-sm" style={{ color: 'var(--text)' }}>
+                        <span>☐</span> {t}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Transcript */}
+              {uploadResult.transcript && (
+                <div className="w-card p-4">
+                  <div className="text-xs font-mono font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--muted)' }}>
+                    Transcripción completa
+                  </div>
+                  <p className="text-xs leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text2)' }}>
+                    {uploadResult.transcript}
+                  </p>
+                </div>
+              )}
+
+              <button
+                onClick={() => { setUploadFile(null); setUploadResult(null); }}
+                className="btn-3d-white w-full"
+              >
+                Procesar otro archivo
+              </button>
+            </div>
+          )}
         </div>
       )}
 

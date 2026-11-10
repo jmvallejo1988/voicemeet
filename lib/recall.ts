@@ -10,6 +10,7 @@ const RECALL_BASE = `https://${RECALL_REGION}.recall.ai/api/v1`;
 
 export interface RecallBotRecording {
   id: string;
+  status?: { code?: string };
   started_at: string;
   completed_at: string;
   download_url?: string;                // legacy field (may be absent in new API)
@@ -24,6 +25,11 @@ export interface RecallBotRecording {
         download_url?: string;
       };
     };
+    transcript?: {
+      id?: string;
+      status?: { code?: string; sub_code?: string };
+      data?: { download_url?: string };
+    } | null;
   };
 }
 
@@ -118,4 +124,62 @@ export function botStatusLabel(status: BotStatus): string {
     fatal:                  'Error',
   };
   return labels[status] ?? status;
+}
+
+// ─── Async transcription (Recall.ai server-side, no file-size limit) ───────
+
+export type TranscriptState =
+  | { state: 'none' }
+  | { state: 'processing'; id?: string }
+  | { state: 'failed'; id?: string; reason?: string }
+  | { state: 'done'; id?: string; downloadUrl: string };
+
+/** Inspect the transcript artifact attached to the bot's first recording */
+export function getTranscriptState(bot: RecallBot): TranscriptState {
+  const t = bot.recordings?.[0]?.media_shortcuts?.transcript;
+  if (!t) return { state: 'none' };
+  const code = t.status?.code;
+  if (code === 'done' && t.data?.download_url) return { state: 'done', id: t.id, downloadUrl: t.data.download_url };
+  if (code === 'failed' || code === 'error') return { state: 'failed', id: t.id, reason: t.status?.sub_code };
+  return { state: 'processing', id: t.id };
+}
+
+/** Ask Recall.ai to transcribe a finished recording (Spanish) */
+export async function createAsyncTranscript(recordingId: string, apiKey: string): Promise<void> {
+  const res = await fetch(`${RECALL_BASE}/recording/${recordingId}/create_transcript/`, {
+    method: 'POST',
+    headers: headers(apiKey),
+    body: JSON.stringify({
+      provider: { recallai_async: { language_code: 'es' } },
+      diarization: { use_separate_streams_when_available: true },
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Recall.ai create_transcript error ${res.status}: ${await res.text()}`);
+  }
+}
+
+/** Download a Recall transcript JSON and turn it into "Nombre: texto" lines */
+export async function downloadTranscriptText(downloadUrl: string): Promise<string> {
+  const res = await fetch(downloadUrl);
+  if (!res.ok) throw new Error(`Transcript download error ${res.status}`);
+  const data: any = await res.json();
+  const segments: any[] = Array.isArray(data) ? data : (data?.segments ?? data?.transcript ?? []);
+  const lines: string[] = [];
+  let lastSpeaker = '';
+  for (const seg of segments) {
+    const speaker: string = seg?.participant?.name || seg?.speaker || 'Participante';
+    const text = Array.isArray(seg?.words)
+      ? seg.words.map((w: any) => w?.text ?? w?.word ?? '').join(' ')
+      : (seg?.text ?? '');
+    const clean = String(text).replace(/\s+/g, ' ').trim();
+    if (!clean) continue;
+    if (speaker === lastSpeaker && lines.length) {
+      lines[lines.length - 1] += ' ' + clean;
+    } else {
+      lines.push(`${speaker}: ${clean}`);
+      lastSpeaker = speaker;
+    }
+  }
+  return lines.join('\n');
 }

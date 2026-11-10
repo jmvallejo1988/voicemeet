@@ -33,6 +33,9 @@ export interface Meeting {
   expiresAt: string;
   status: 'pending' | 'processing' | 'ready' | 'error';
   emailSent: boolean;
+  transcriptRequestedAt?: string;   // when we asked Recall.ai to transcribe
+  processingStartedAt?: string;     // when the final pipeline started
+  transcriptSource?: 'recall' | 'groq' | 'none';
 }
 
 export interface UserSettings {

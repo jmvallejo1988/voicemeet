@@ -60,15 +60,27 @@ export async function summarizeText(
       : `Eres un asistente experto en procesamiento de notas de voz y grabaciones personales.
          Tu tarea es transcribir y estructurar la información de forma clara.`;
 
-  const userPrompt = `Analiza la siguiente transcripción y devuelve un JSON con exactamente este formato:
+  // gpt-4o-mini soporta ~128k tokens; recortamos por seguridad en reuniones muy largas
+  const MAX_CHARS = 350_000;
+  const clipped = transcript.length > MAX_CHARS
+    ? transcript.slice(0, MAX_CHARS) + '\n[...transcripción recortada por longitud...]'
+    : transcript;
+
+  const userPrompt = `Analiza la siguiente transcripción (cada línea puede empezar con "Nombre:" indicando quién habla) y devuelve un JSON con exactamente este formato:
 {
-  "summary": "Resumen ejecutivo en 2-3 oraciones concisas",
-  "keyPoints": ["Punto clave 1", "Punto clave 2", "Punto clave 3"],
-  "tasks": ["Tarea o acción 1 (responsable si aplica)", "Tarea 2"]
+  "summary": "Resumen ejecutivo en 3-5 oraciones: objetivo de la reunión, lo que se decidió y próximos pasos",
+  "keyPoints": ["Punto clave, decisión o acuerdo 1", "Punto clave 2", "..."],
+  "tasks": ["Responsable — tarea concreta — fecha/plazo si se mencionó", "..."]
 }
 
+Reglas para "tasks":
+- Incluye TODO compromiso, pendiente, encargo o siguiente paso mencionado (aunque sea implícito: "yo te mando...", "quedamos en...", "hay que...", "para el lunes...").
+- Indica el responsable por su nombre cuando se sepa; si no, usa "Por definir".
+- Si de verdad no hay ninguna tarea, devuelve [].
+Incluye entre 3 y 8 keyPoints según la duración de la reunión.
+
 TRANSCRIPCIÓN:
-${transcript}
+${clipped}
 
 Responde ÚNICAMENTE con el JSON, sin markdown, sin explicaciones adicionales.`;
 

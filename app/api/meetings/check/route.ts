@@ -15,7 +15,7 @@ import { getBot, getBotStatusCode } from '@/lib/recall';
 import { getSettings, listMeetings } from '@/lib/storage';
 import { processMeeting } from '@/lib/process-meeting';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST() {
   const session = await getServerSession(authOptions);
@@ -35,9 +35,10 @@ export async function POST() {
     const pending = meetings.filter(m =>
       m.status === 'pending' ||
       // Reuniones atascadas en 'processing' por más de 10 min → reintentar
-      (m.status === 'processing' && now - new Date(m.createdAt).getTime() > staleProcessingMs) ||
-      // Reuniones en 'error' que tienen botId → pueden reintentarse
-      (m.status === 'error' && !!m.meetSpaceId)
+      (m.status === 'processing' &&
+        now - new Date(m.processingStartedAt ?? m.createdAt).getTime() > staleProcessingMs) ||
+      // Reuniones antiguas en 'error' (pipeline viejo) → reintentar con el nuevo flujo una vez
+      (m.status === 'error' && !!m.meetSpaceId && !m.transcriptRequestedAt)
     );
 
     if (pending.length === 0) {
@@ -71,9 +72,11 @@ export async function POST() {
 
       // Bot is done — process the recording
       try {
-        await processMeeting(meeting, botId);
-        await kv.del(`bot:${botId}`);
-        processed++;
+        const r = await processMeeting(meeting, botId);
+        if (r === 'done') {
+          await kv.del(`bot:${botId}`);
+          processed++;
+        }
       } catch (e) {
         console.error(`[check] Failed to process meeting ${meeting.id}:`, e);
         errors++;

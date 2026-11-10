@@ -90,10 +90,14 @@ export async function GET(req: NextRequest) {
       // Bot is done — process the recording
       console.log(`[Cron] Processing meeting ${meetingId} (bot ${botId})`);
       try {
-        await processMeeting(meeting, botId);
-        processed++;
-        // Clean up the bot → meetingId index
-        await kv.del(botKey);
+        const r = await processMeeting(meeting, botId);
+        if (r === 'done') {
+          processed++;
+          // Clean up the bot → meetingId index
+          await kv.del(botKey);
+        } else {
+          skipped++;
+        }
       } catch (e) {
         console.error(`[Cron] Failed to process meeting ${meetingId}:`, e);
         errors++;
